@@ -72,24 +72,43 @@ void __no_inline_not_in_flash_func(sof_handler)(uint32_t frame_count) {
 }
 
 bool do_send_report(uint8_t interface, const uint8_t* report_with_id, uint8_t len) {
-    // Stock hid-remapper treats the first byte of `report_with_id` as a Report ID
-    // and sends the remainder as the report payload. For vendor-defined devices
-    // (interface 0 in your build), we want to send *raw report bytes* so that the
-    // first byte on the wire can be 0xC3 (your command), not a Report ID.
+    // IMPORTANT:
+    // Stock hid-remapper sends reports as: (ReportID = report_with_id[0]) + (payload = report_with_id+1).
+    //
+    // For the MDA-100 emulation, we want the host to receive a 64-byte report whose first byte is 0xC3
+    // and second byte is the command (e.g. 0x10 for mute). On Windows, HID input report buffers
+    // include the report ID byte, so we intentionally use Report ID 0xC3 and a 63-byte payload.
+    //
+    // In captures, a leading "C3" often refers to the USB DATA0 PID (not the HID report byte). This
+    // function forces the *actual HID report* to start with 0xC3.
 
     if (interface == 0) {
-        // Interface 0: raw bytes, no Report ID.
-        if (tud_suspended() &&
-            (our_descriptor->should_cause_wakeup != nullptr) &&
-            our_descriptor->should_cause_wakeup(0, report_with_id, len)) {
-            tud_remote_wakeup();
-        } else {
-            tud_hid_n_report(0, 0, report_with_id, len);
+        // In the stock keyboard-oriented descriptors, the remapper often emits a 2-byte report:
+        //   [0x03, <code>]
+        // where 0x03 is the Report ID and <code> is the one-byte payload (0x10 observed for mute).
+        //
+        // We translate ANY report-id 0x03 single-byte payload into:
+        //   Report ID 0xC3 + 63-byte payload where payload[0] = <code>, rest 0.
+        //
+        // This produces a 64-byte on-wire report: [C3, <code>, 00, 00, ...]
+        if (len >= 2 && report_with_id[0] == 0x03) {
+            uint8_t payload[63] = { 0 };
+            payload[0] = report_with_id[1];
+
+            if (tud_suspended()) {
+                // If suspended, request remote wakeup first. (The report may be re-sent on next trigger.)
+                tud_remote_wakeup();
+            } else {
+                tud_hid_n_report(0, 0xC3, payload, sizeof(payload));
+            }
+            return true;
         }
+
+        // Swallow other interface-0 reports in this special build.
         return true;
     }
 
-    // Other interfaces: keep stock behavior (first byte is Report ID).
+    // Default behavior for other HID instances (e.g. the config/monitor interface).
     if (tud_suspended() &&
         (our_descriptor->should_cause_wakeup != nullptr) &&
         our_descriptor->should_cause_wakeup(report_with_id[0], report_with_id + 1, len - 1)) {
