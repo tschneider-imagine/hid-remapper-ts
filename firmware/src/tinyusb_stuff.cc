@@ -26,8 +26,6 @@
 
 #include <tusb.h>
 
-// Needed for memcpy/strlen/printf in this translation unit.
-// (C++ builds don't allow implicit declarations.)
 #include <string.h>
 #include <stdio.h>
 
@@ -40,7 +38,7 @@
 // These IDs are bogus. If you want to distribute any hardware using this,
 // you will have to get real ones.
 #define USB_VID 0x0914  //was 0xCAFE
-#define USB_PID 0x1042  //was 0xBAF2
+#define USB_PID 0x1040  // MDA-100
 
 tusb_desc_device_t desc_device = {
     .bLength = sizeof(tusb_desc_device_t),
@@ -62,39 +60,54 @@ tusb_desc_device_t desc_device = {
     .bNumConfigurations = 0x01,
 };
 
+// Vendor-defined report: Report ID 0xC3, 1 byte payload (e.g., 0x10 mute, 0x20 vol up, 0x40 vol down)
+static const uint8_t mda_report_desc[] = {
+    0x06, 0x00, 0xFF,       // Usage Page (Vendor 0xFF00)
+    0x09, 0x01,             // Usage (0x01)
+    0xA1, 0x01,             // Collection (Application)
+    0x85, 0xC3,             //   Report ID (0xC3)
+    0x15, 0x00,             //   Logical Min (0)
+    0x26, 0xFF, 0x00,       //   Logical Max (255)
+    0x75, 0x08,             //   Report Size (8)
+    0x95, 0x01,             //   Report Count (1 byte)
+    0x81, 0x02,             //   Input (Data,Var,Abs)
+    0xC0                    // End Collection
+};
+
+
 const uint8_t configuration_descriptor0[] = {
     TUD_CONFIG_DESCRIPTOR(1, 2, 0, TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN + TUD_HID_DESC_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
-    TUD_HID_DESCRIPTOR(0, 0, HID_ITF_PROTOCOL_KEYBOARD, our_descriptors[0].descriptor_length, 0x81, CFG_TUD_HID_EP_BUFSIZE, 1),
+    TUD_HID_DESCRIPTOR(0, 0, HID_ITF_PROTOCOL_NONE, sizeof(mda_report_desc), 0x81, CFG_TUD_HID_EP_BUFSIZE, 1),
     TUD_HID_DESCRIPTOR(1, 0, HID_ITF_PROTOCOL_NONE, config_report_descriptor_length, 0x83, CFG_TUD_HID_EP_BUFSIZE, 1),
 };
 
 const uint8_t configuration_descriptor1[] = {
     TUD_CONFIG_DESCRIPTOR(1, 2, 0, TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN + TUD_HID_DESC_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
-    TUD_HID_DESCRIPTOR(0, 0, HID_ITF_PROTOCOL_KEYBOARD, our_descriptors[1].descriptor_length, 0x81, CFG_TUD_HID_EP_BUFSIZE, 1),
+    TUD_HID_DESCRIPTOR(0, 0, HID_ITF_PROTOCOL_NONE, sizeof(mda_report_desc), 0x81, CFG_TUD_HID_EP_BUFSIZE, 1),
     TUD_HID_DESCRIPTOR(1, 0, HID_ITF_PROTOCOL_NONE, config_report_descriptor_length, 0x83, CFG_TUD_HID_EP_BUFSIZE, 1),
 };
 
 const uint8_t configuration_descriptor2[] = {
     TUD_CONFIG_DESCRIPTOR(1, 2, 0, TUD_CONFIG_DESC_LEN + TUD_HID_INOUT_DESC_LEN + TUD_HID_DESC_LEN, 0, 100),
-    TUD_HID_INOUT_DESCRIPTOR(0, 0, HID_ITF_PROTOCOL_NONE, our_descriptors[2].descriptor_length, 0x02, 0x81, CFG_TUD_HID_EP_BUFSIZE, 1),
+    TUD_HID_INOUT_DESCRIPTOR(0, 0, HID_ITF_PROTOCOL_NONE, sizeof(mda_report_desc), 0x02, 0x81, CFG_TUD_HID_EP_BUFSIZE, 1),
     TUD_HID_DESCRIPTOR(1, 0, HID_ITF_PROTOCOL_NONE, config_report_descriptor_length, 0x83, CFG_TUD_HID_EP_BUFSIZE, 1),
 };
 
 const uint8_t configuration_descriptor3[] = {
     TUD_CONFIG_DESCRIPTOR(1, 2, 0, TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN + TUD_HID_DESC_LEN, 0, 100),
-    TUD_HID_DESCRIPTOR(0, 0, HID_ITF_PROTOCOL_NONE, our_descriptors[3].descriptor_length, 0x81, CFG_TUD_HID_EP_BUFSIZE, 1),
+    TUD_HID_DESCRIPTOR(0, 0, HID_ITF_PROTOCOL_NONE, sizeof(mda_report_desc), 0x81, CFG_TUD_HID_EP_BUFSIZE, 1),
     TUD_HID_DESCRIPTOR(1, 0, HID_ITF_PROTOCOL_NONE, config_report_descriptor_length, 0x83, CFG_TUD_HID_EP_BUFSIZE, 1),
 };
 
 const uint8_t configuration_descriptor4[] = {
     TUD_CONFIG_DESCRIPTOR(1, 2, 0, TUD_CONFIG_DESC_LEN + TUD_HID_INOUT_DESC_LEN + TUD_HID_DESC_LEN, 0, 100),
-    TUD_HID_INOUT_DESCRIPTOR(0, 0, HID_ITF_PROTOCOL_NONE, our_descriptors[4].descriptor_length, 0x02, 0x81, CFG_TUD_HID_EP_BUFSIZE, 1),
+    TUD_HID_INOUT_DESCRIPTOR(0, 0, HID_ITF_PROTOCOL_NONE, sizeof(mda_report_desc), 0x02, 0x81, CFG_TUD_HID_EP_BUFSIZE, 1),
     TUD_HID_DESCRIPTOR(1, 0, HID_ITF_PROTOCOL_NONE, config_report_descriptor_length, 0x83, CFG_TUD_HID_EP_BUFSIZE, 1),
 };
 
 const uint8_t configuration_descriptor5[] = {
     TUD_CONFIG_DESCRIPTOR(1, 2, 0, TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN + TUD_HID_DESC_LEN, 0, 100),
-    TUD_HID_DESCRIPTOR(0, 0, HID_ITF_PROTOCOL_NONE, our_descriptors[5].descriptor_length, 0x81, CFG_TUD_HID_EP_BUFSIZE, 1),
+    TUD_HID_DESCRIPTOR(0, 0, HID_ITF_PROTOCOL_NONE, sizeof(mda_report_desc), 0x81, CFG_TUD_HID_EP_BUFSIZE, 1),
     TUD_HID_DESCRIPTOR(1, 0, HID_ITF_PROTOCOL_NONE, config_report_descriptor_length, 0x83, CFG_TUD_HID_EP_BUFSIZE, 1),
 };
 
@@ -139,7 +152,7 @@ uint8_t const* tud_descriptor_configuration_cb(uint8_t index) {
 // Descriptor contents must exist long enough for transfer to complete
 uint8_t const* tud_hid_descriptor_report_cb(uint8_t itf) {
     if (itf == 0) {
-        return our_descriptor->descriptor;
+        return mda_report_desc;
     } else if (itf == 1) {
         return config_report_descriptor;
     }
