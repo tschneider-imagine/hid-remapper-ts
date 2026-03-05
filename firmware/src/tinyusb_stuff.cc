@@ -37,28 +37,19 @@
 #define USB_VID 0x0914
 #define USB_PID 0x1040
 
-// Vendor-defined HID report descriptor intended to look like the MDA-100 panel:
-// - Vendor Usage Page 0xFF00 / Usage 0x01
-// - Report ID 0xC3
-// - 63-byte payload (so total on-wire report is 64 bytes: 1-byte Report ID + 63 bytes payload)
-//
-// This matches the common "64-byte vendor HID" pattern while ensuring the first byte
-// seen by Windows HID APIs is 0xC3 (report ID).
+// Vendor-defined HID report descriptor to avoid Windows binding kbdhid.sys.
+// Hex: 06 00 FF 09 01 A1 01 19 01 29 40 15 00 26 FF 00 75 08 95 40 81 02 C0
 static const uint8_t mda_vendor_report_desc[] = {
     0x06, 0x00, 0xFF,  // Usage Page (Vendor Defined 0xFF00)
     0x09, 0x01,        // Usage (0x01)
     0xA1, 0x01,        // Collection (Application)
-    0x85, 0xC3,        //   Report ID (0xC3)
-    0x19, 0x01,        //   Usage Minimum (0x01)
-    0x29, 0x3F,        //   Usage Maximum (0x3F)  (63 bytes)
     0x15, 0x00,        //   Logical Minimum (0)
     0x26, 0xFF, 0x00,  //   Logical Maximum (255)
-    0x75, 0x08,        //   Report Size (8 bits)
-    0x95, 0x3F,        //   Report Count (63 bytes)
+    0x75, 0x08,        //   Report Size (8)
+    0x95, 0x02,        //   Report Count (2 bytes)
     0x81, 0x02,        //   Input (Data,Var,Abs)
     0xC0               // End Collection
 };
-
 
 tusb_desc_device_t desc_device = {
     .bLength = sizeof(tusb_desc_device_t),
@@ -84,37 +75,37 @@ const uint8_t configuration_descriptor0[] = {
     TUD_CONFIG_DESCRIPTOR(1, 2, 0, TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN + TUD_HID_DESC_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
     // Interface 0 MUST NOT be Keyboard, or Windows IoT/ArgOS will bind kbdhid.sys and filter vendor reports.
     TUD_HID_DESCRIPTOR(0, 0, HID_ITF_PROTOCOL_NONE, sizeof(mda_vendor_report_desc), 0x81, CFG_TUD_HID_EP_BUFSIZE, 1),
-    TUD_HID_DESCRIPTOR(1, 0, HID_ITF_PROTOCOL_NONE, config_report_descriptor_length, 0x83, CFG_TUD_HID_EP_BUFSIZE, 1),
+    TUD_HID_DESCRIPTOR(1, 0, HID_ITF_PROTOCOL_NONE, sizeof(mda_vendor_report_desc), 0x83, CFG_TUD_HID_EP_BUFSIZE, 1),
 };
 
 const uint8_t configuration_descriptor1[] = {
     TUD_CONFIG_DESCRIPTOR(1, 2, 0, TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN + TUD_HID_DESC_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
     TUD_HID_DESCRIPTOR(0, 0, HID_ITF_PROTOCOL_NONE, sizeof(mda_vendor_report_desc), 0x81, CFG_TUD_HID_EP_BUFSIZE, 1),
-    TUD_HID_DESCRIPTOR(1, 0, HID_ITF_PROTOCOL_NONE, config_report_descriptor_length, 0x83, CFG_TUD_HID_EP_BUFSIZE, 1),
+    TUD_HID_DESCRIPTOR(1, 0, HID_ITF_PROTOCOL_NONE, sizeof(mda_vendor_report_desc), 0x83, CFG_TUD_HID_EP_BUFSIZE, 1),
 };
 
 const uint8_t configuration_descriptor2[] = {
     TUD_CONFIG_DESCRIPTOR(1, 2, 0, TUD_CONFIG_DESC_LEN + TUD_HID_INOUT_DESC_LEN + TUD_HID_DESC_LEN, 0, 100),
     TUD_HID_INOUT_DESCRIPTOR(0, 0, HID_ITF_PROTOCOL_NONE, sizeof(mda_vendor_report_desc), 0x02, 0x81, CFG_TUD_HID_EP_BUFSIZE, 1),
-    TUD_HID_DESCRIPTOR(1, 0, HID_ITF_PROTOCOL_NONE, config_report_descriptor_length, 0x83, CFG_TUD_HID_EP_BUFSIZE, 1),
+    TUD_HID_DESCRIPTOR(1, 0, HID_ITF_PROTOCOL_NONE, sizeof(mda_vendor_report_desc), 0x83, CFG_TUD_HID_EP_BUFSIZE, 1),
 };
 
 const uint8_t configuration_descriptor3[] = {
     TUD_CONFIG_DESCRIPTOR(1, 2, 0, TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN + TUD_HID_DESC_LEN, 0, 100),
     TUD_HID_DESCRIPTOR(0, 0, HID_ITF_PROTOCOL_NONE, sizeof(mda_vendor_report_desc), 0x81, CFG_TUD_HID_EP_BUFSIZE, 1),
-    TUD_HID_DESCRIPTOR(1, 0, HID_ITF_PROTOCOL_NONE, config_report_descriptor_length, 0x83, CFG_TUD_HID_EP_BUFSIZE, 1),
+    TUD_HID_DESCRIPTOR(1, 0, HID_ITF_PROTOCOL_NONE, sizeof(mda_vendor_report_desc), 0x83, CFG_TUD_HID_EP_BUFSIZE, 1),
 };
 
 const uint8_t configuration_descriptor4[] = {
     TUD_CONFIG_DESCRIPTOR(1, 2, 0, TUD_CONFIG_DESC_LEN + TUD_HID_INOUT_DESC_LEN + TUD_HID_DESC_LEN, 0, 100),
     TUD_HID_INOUT_DESCRIPTOR(0, 0, HID_ITF_PROTOCOL_NONE, sizeof(mda_vendor_report_desc), 0x02, 0x81, CFG_TUD_HID_EP_BUFSIZE, 1),
-    TUD_HID_DESCRIPTOR(1, 0, HID_ITF_PROTOCOL_NONE, config_report_descriptor_length, 0x83, CFG_TUD_HID_EP_BUFSIZE, 1),
+    TUD_HID_DESCRIPTOR(1, 0, HID_ITF_PROTOCOL_NONE, sizeof(mda_vendor_report_desc), 0x83, CFG_TUD_HID_EP_BUFSIZE, 1),
 };
 
 const uint8_t configuration_descriptor5[] = {
     TUD_CONFIG_DESCRIPTOR(1, 2, 0, TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN + TUD_HID_DESC_LEN, 0, 100),
     TUD_HID_DESCRIPTOR(0, 0, HID_ITF_PROTOCOL_NONE, sizeof(mda_vendor_report_desc), 0x81, CFG_TUD_HID_EP_BUFSIZE, 1),
-    TUD_HID_DESCRIPTOR(1, 0, HID_ITF_PROTOCOL_NONE, config_report_descriptor_length, 0x83, CFG_TUD_HID_EP_BUFSIZE, 1),
+    TUD_HID_DESCRIPTOR(1, 0, HID_ITF_PROTOCOL_NONE, sizeof(mda_vendor_report_desc), 0x83, CFG_TUD_HID_EP_BUFSIZE, 1),
 };
 
 const uint8_t* configuration_descriptors[] = {
@@ -158,7 +149,7 @@ uint8_t const* tud_hid_descriptor_report_cb(uint8_t itf) {
         // Force vendor-defined descriptor so Windows binds the generic HID driver.
         return mda_vendor_report_desc;
     } else if (itf == 1) {
-        return config_report_descriptor;
+        return mda_vendor_report_desc;
     }
 
     return NULL;
