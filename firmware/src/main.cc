@@ -72,30 +72,28 @@ void __no_inline_not_in_flash_func(sof_handler)(uint32_t frame_count) {
 }
 
 bool do_send_report(uint8_t interface, const uint8_t* report_with_id, uint8_t len) {
-    // Stock hid-remapper treats report_with_id as: [report_id, payload...]
-    // and sends: tud_hid_n_report(interface, report_id, payload, payload_len).
+    // Cabinet integration hack:
+    // The stock remapper output path treats the first byte as a report ID.
+    // Our cabinet listener is polling HID instance 1 (EP 0x83) and expects a
+    // vendor-defined *data* report that begins with 0xC3 0x10.
     //
-    // In your keyboard-baseline capture, the "mute" activity appears on the wire as 2 bytes:
-    //   03 10
-    // which matches: Report ID 0x03, payload byte 0x10.
-    //
-    // In the vendor-descriptor capture you provided earlier, the host is polling EP 0x83 (HID instance 1),
-    // and not polling EP 0x81. So we must put the *actual* mute packet on instance 1.
-    //
-    // We keep the vendor HID report descriptor as a simple 2-byte Input report (no Report IDs)
-    // and we transmit the raw bytes:
-    //   C3 10
-    // on HID instance 1 (EP 0x83).
-    if (len >= 2 && report_with_id[0] == 0x03 && report_with_id[1] == 0x10) {
-        const uint8_t mda_mute[2] = {0xC3, 0x10};
+    // We translate the observed on-wire pattern (ReportID=0x03, payload=0x10)
+    // into a 64-byte vendor report { C3,10,00.. } sent on interface 1 with
+    // report_id=0 (no report IDs).
+    if ((interface == 1) && (len >= 2) && (report_with_id[0] == 0x03) && (report_with_id[1] == 0x10)) {
+        uint8_t rpt[64] = {0};
+        rpt[0] = 0xC3;
+        rpt[1] = 0x10;
+        constexpr uint16_t rpt_len = 64;
 
-        if (tud_suspended()) {
+        if (tud_suspended() &&
+            (our_descriptor->should_cause_wakeup != nullptr) &&
+            our_descriptor->should_cause_wakeup(0, rpt, rpt_len)) {
             tud_remote_wakeup();
         } else {
-            // Send raw 2 bytes on HID instance 1 (EP 0x83), with Report ID = 0.
-            tud_hid_n_report(1, 0, mda_mute, sizeof(mda_mute));
+            tud_hid_n_report(1, 0, rpt, rpt_len);
         }
-        // Fall through and also send the original report as stock code would.
+        return true;
     }
 
     if (tud_suspended() &&
