@@ -72,6 +72,24 @@ void __no_inline_not_in_flash_func(sof_handler)(uint32_t frame_count) {
 }
 
 bool do_send_report(uint8_t interface, const uint8_t* report_with_id, uint8_t len) {
+    // Stock hid-remapper treats the first byte of `report_with_id` as a Report ID
+    // and sends the remainder as the report payload. For vendor-defined devices
+    // (interface 0 in your build), we want to send *raw report bytes* so that the
+    // first byte on the wire can be 0xC3 (your command), not a Report ID.
+
+    if (interface == 0) {
+        // Interface 0: raw bytes, no Report ID.
+        if (tud_suspended() &&
+            (our_descriptor->should_cause_wakeup != nullptr) &&
+            our_descriptor->should_cause_wakeup(0, report_with_id, len)) {
+            tud_remote_wakeup();
+        } else {
+            tud_hid_n_report(0, 0, report_with_id, len);
+        }
+        return true;
+    }
+
+    // Other interfaces: keep stock behavior (first byte is Report ID).
     if (tud_suspended() &&
         (our_descriptor->should_cause_wakeup != nullptr) &&
         our_descriptor->should_cause_wakeup(report_with_id[0], report_with_id + 1, len - 1)) {
