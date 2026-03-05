@@ -72,36 +72,23 @@ void __no_inline_not_in_flash_func(sof_handler)(uint32_t frame_count) {
 }
 
 bool do_send_report(uint8_t interface, const uint8_t* report_with_id, uint8_t len) {
-    // Cabinet integration hack:
-    // The stock remapper output path treats the first byte as a report ID.
-    // Our cabinet listener is polling HID instance 1 (EP 0x83) and expects a
-    // vendor-defined *data* report that begins with 0xC3 0x10.
-    //
-    // We translate the observed on-wire pattern (ReportID=0x03, payload=0x10)
-    // into a 64-byte vendor report { C3,10,00.. } sent on interface 1 with
-    // report_id=0 (no report IDs).
-    if ((interface == 1) && (len >= 2) && (report_with_id[0] == 0x03) && (report_with_id[1] == 0x10)) {
-        uint8_t rpt[64] = {0};
-        rpt[0] = 0xC3;
-        rpt[1] = 0x10;
-        constexpr uint16_t rpt_len = 64;
+    if (len == 0) {
+        return false;
+    }
 
-        if (tud_suspended() &&
-            (our_descriptor->should_cause_wakeup != nullptr) &&
-            our_descriptor->should_cause_wakeup(0, rpt, rpt_len)) {
-            tud_remote_wakeup();
-        } else {
-            tud_hid_n_report(1, 0, rpt, rpt_len);
-        }
-        return true;
+    // For MDA emulation: translate report ID 0x03 -> 0xC3 on interface 0
+    // so the host sees [C3, <cmd>] (e.g., C3 10) instead of [03, <cmd>].
+    uint8_t report_id = report_with_id[0];
+    if ((interface == 0) && (report_id == 0x03)) {
+        report_id = 0xC3;
     }
 
     if (tud_suspended() &&
         (our_descriptor->should_cause_wakeup != nullptr) &&
-        our_descriptor->should_cause_wakeup(report_with_id[0], report_with_id + 1, len - 1)) {
+        our_descriptor->should_cause_wakeup(report_id, report_with_id + 1, len - 1)) {
         tud_remote_wakeup();
     } else {
-        tud_hid_n_report(interface, report_with_id[0], report_with_id + 1, len - 1);
+        tud_hid_n_report(interface, report_id, report_with_id + 1, len - 1);
     }
     return true;  // XXX?
 }
