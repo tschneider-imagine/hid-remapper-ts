@@ -66,6 +66,7 @@ static const uint8_t mda_report_desc[] = {
     0x09, 0x01,             // Usage (0x01)
     0xA1, 0x01,             // Collection (Application)
     0x85, 0xC3,             //   Report ID (0xC3)
+    0x09, 0x02,             //   Usage (0x02) - required so the Input has a Usage
     0x15, 0x00,             //   Logical Min (0)
     0x26, 0xFF, 0x00,       //   Logical Max (255)
     0x75, 0x08,             //   Report Size (8)
