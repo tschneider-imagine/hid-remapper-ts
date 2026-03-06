@@ -44,6 +44,20 @@
 
 uint64_t next_print = 0;
 
+// One-shot self-test: emit a MDA-style mute press/release once after USB mount.
+// This removes any dependency on mappings/input devices when verifying the cabinet-side listener.
+static volatile bool mda_selftest_pending = false;
+static volatile uint8_t mda_selftest_stage = 0;
+static volatile uint64_t mda_selftest_due_us = 0;
+
+extern "C" void tud_mount_cb(void) {
+    // Schedule the first report a short time after the host sets configuration.
+    mda_selftest_pending = true;
+    mda_selftest_stage = 0;
+    mda_selftest_due_us = time_us_64() + 500000;  // 500ms
+}
+
+
 mutex_t mutexes[(uint8_t) MutexId::N];
 
 uint32_t gpio_valid_pins_mask = 0;
@@ -329,6 +343,29 @@ int main() {
             set_gpio_dir();
             set_gpio_dir_pending = false;
         }
+        // Self-test sender: once mounted and ready, emit Volume Up (C3 20) then release (C3 00)
+        // as 64-byte reports. Repeats a few times so the effect is obvious.
+        if (mda_selftest_pending && (time_us_64() >= mda_selftest_due_us) && tud_hid_n_ready(0)) {
+            constexpr uint8_t kCmdPress = 0x20;     // Volume Up
+            constexpr uint8_t kPulses = 3;          // press+release cycles
+            constexpr uint64_t kIntervalUs = 30000; // 30ms between frames
+
+            uint8_t rpt[64] = {0};
+            rpt[0] = 0xC3;
+            // Even stages are "press", odd stages are "release"
+            rpt[1] = ((mda_selftest_stage % 2) == 0) ? kCmdPress : 0x00;
+
+            // report_id = 0 because interface 0 report descriptor uses no Report IDs
+            tud_hid_n_report(0, 0, rpt, 64);
+
+            mda_selftest_stage++;
+            if (mda_selftest_stage < (uint8_t)(2 * kPulses)) {
+                mda_selftest_due_us = time_us_64() + kIntervalUs;
+            } else {
+                mda_selftest_pending = false;
+            }
+        }
+
         if (tud_hid_n_ready(0) || tud_suspended()) {
             send_report(do_send_report);
         }
