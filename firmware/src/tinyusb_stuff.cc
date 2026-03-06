@@ -60,20 +60,22 @@ tusb_desc_device_t desc_device = {
     .bNumConfigurations = 0x01,
 };
 
-// Vendor-defined report: Report ID 0xC3, 1 byte payload (e.g., 0x10 mute, 0x20 vol up, 0x40 vol down)
+// Vendor-defined report: 64-byte INPUT report (no Report IDs).
+// Host receives 64 bytes, where byte0=0xC3 and byte1=<cmd> (0x10 mute, 0x20 vol up, 0x40 vol down), rest zero.
 static const uint8_t mda_report_desc[] = {
     0x06, 0x00, 0xFF,       // Usage Page (Vendor 0xFF00)
     0x09, 0x01,             // Usage (0x01)
     0xA1, 0x01,             // Collection (Application)
-    0x85, 0xC3,             //   Report ID (0xC3)
-    0x09, 0x02,             //   Usage (0x02) - required so the Input has a Usage
+    0x19, 0x01,             //   Usage Minimum (0x01)
+    0x29, 0x40,             //   Usage Maximum (0x40)  (64 bytes)
     0x15, 0x00,             //   Logical Min (0)
     0x26, 0xFF, 0x00,       //   Logical Max (255)
     0x75, 0x08,             //   Report Size (8)
-    0x95, 0x01,             //   Report Count (1 byte)
+    0x95, 0x40,             //   Report Count (64)
     0x81, 0x02,             //   Input (Data,Var,Abs)
     0xC0                    // End Collection
 };
+
 
 
 const uint8_t configuration_descriptor0[] = {
