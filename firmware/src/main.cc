@@ -76,22 +76,37 @@ bool do_send_report(uint8_t interface, const uint8_t* report_with_id, uint8_t le
         return false;
     }
 
-    // For MDA emulation: translate report ID 0x03 -> 0xC3 on interface 0
-    // so the host sees [C3, <cmd>] (e.g., C3 10) instead of [03, <cmd>].
-    uint8_t report_id = report_with_id[0];
-    if ((interface == 0) && (report_id == 0x03)) {
-        report_id = 0xC3;
+    // MDA emulation (interface 0 / EP 0x81):
+    // hid-remapper produces reports as [report_id, payload...]. In your captures this shows up as [03, <cmd>].
+    // The cabinet-side service appears to expect a 64-byte vendor-defined INPUT report where:
+    //   byte0 = 0xC3, byte1 = <cmd>, bytes2..63 = 0x00.
+    if (interface == 0) {
+        uint8_t rpt[64] = {0};
+        rpt[0] = 0xC3;
+        rpt[1] = (len >= 2) ? report_with_id[1] : 0x00;
+
+        if (tud_suspended() &&
+            (our_descriptor->should_cause_wakeup != nullptr) &&
+            our_descriptor->should_cause_wakeup(0, rpt, 64)) {
+            tud_remote_wakeup();
+        } else {
+            // report_id = 0 because our report descriptor for interface 0 uses NO Report IDs
+            tud_hid_n_report(0, 0, rpt, 64);
+        }
+        return true;
     }
 
+    // Default behavior for other interfaces (e.g., monitor/config HID on interface 1)
     if (tud_suspended() &&
         (our_descriptor->should_cause_wakeup != nullptr) &&
-        our_descriptor->should_cause_wakeup(report_id, report_with_id + 1, len - 1)) {
+        our_descriptor->should_cause_wakeup(report_with_id[0], report_with_id + 1, len - 1)) {
         tud_remote_wakeup();
     } else {
-        tud_hid_n_report(interface, report_id, report_with_id + 1, len - 1);
+        tud_hid_n_report(interface, report_with_id[0], report_with_id + 1, len - 1);
     }
     return true;  // XXX?
 }
+
 
 void gpio_pins_init() {
     gpio_valid_pins_mask = get_gpio_valid_pins_mask();
